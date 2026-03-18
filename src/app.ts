@@ -9,6 +9,7 @@ import { registerAutomationRoutes } from './modules/automation/automation.routes
 import { registerProcessJobRoutes } from './modules/automation/process-job.routes';
 import { registerAnalyticsRoutes } from './modules/analytics/analytics.routes';
 import { registerHealthRoutes } from './modules/health/health.routes';
+import { registerVideoRoutes } from './modules/video/video.routes';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
   registerAutomationRoutes(app);
   registerProcessJobRoutes(app);
   registerAnalyticsRoutes(app);
+  registerVideoRoutes(app);
 
   app.use(errorHandler);
   return app;

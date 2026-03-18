@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express';
 import { env } from '../../config/env';
 import { asyncHandler, HttpError } from '../../lib/http';
 import { processDueJobs } from './process-job.service';
+import { runScheduleScan } from './scheduler.service';
 
 function isAuthorized(headers: Record<string, string | string[] | undefined>) {
   if (!env.CRON_SECRET) return true;
@@ -44,4 +45,28 @@ async function handleProcessJob(req: Request, res: Response) {
 export function registerProcessJobRoutes(app: Express) {
   app.post('/api/process-job', asyncHandler(handleProcessJob));
   app.get('/api/process-job', asyncHandler(handleProcessJob));
+
+  app.post(
+    '/api/schedule-scan',
+    asyncHandler(async (req, res) => {
+      if (!isAuthorized(req.headers as Record<string, string | string[] | undefined>)) {
+        throw new HttpError(401, 'Unauthorized cron request');
+      }
+
+      const result = await runScheduleScan();
+      res.json({ ok: true, ...result });
+    })
+  );
+
+  app.get(
+    '/api/schedule-scan',
+    asyncHandler(async (req, res) => {
+      if (!isAuthorized(req.headers as Record<string, string | string[] | undefined>)) {
+        throw new HttpError(401, 'Unauthorized cron request');
+      }
+
+      const result = await runScheduleScan();
+      res.json({ ok: true, ...result });
+    })
+  );
 }

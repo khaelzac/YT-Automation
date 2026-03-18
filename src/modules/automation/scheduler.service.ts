@@ -1,8 +1,5 @@
 import { prisma } from '../../db/prisma';
-import { logger } from '../../config/logger';
 import { createAutomationJob } from './automation.service';
-
-let timer: NodeJS.Timeout | null = null;
 
 function getZonedParts(date: Date, timezone: string) {
   const formatter = new Intl.DateTimeFormat('en-US', {
@@ -35,7 +32,7 @@ function getZonedParts(date: Date, timezone: string) {
   };
 }
 
-async function runScheduleScan() {
+export async function runScheduleScan() {
   const users = await prisma.user.findMany({
     include: {
       settings: true,
@@ -47,6 +44,8 @@ async function runScheduleScan() {
       }
     }
   });
+
+  let createdCount = 0;
 
   for (const user of users) {
     if (!user.settings?.autoEnabled || !user.settings.niche) continue;
@@ -75,17 +74,10 @@ async function runScheduleScan() {
 
     if (!recentlyCreated) {
       await createAutomationJob(user.id, now);
+      createdCount += 1;
     }
   }
-}
 
-export function startScheduleTick() {
-  if (timer) return;
-
-  timer = setInterval(() => {
-    runScheduleScan().catch((err) => {
-      logger.error({ err }, 'Scheduled automation scan failed');
-    });
-  }, 60 * 1000);
+  return { createdCount };
 }
 

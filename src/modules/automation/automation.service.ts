@@ -2,7 +2,6 @@ import { prisma } from '../../db/prisma';
 import { JobStatus } from '@prisma/client';
 import { HttpError } from '../../lib/http';
 import { getPreflight } from '../settings/settings.service';
-import { emitJobUpdate } from '../realtime/socket';
 
 const STATUS_PENDING = 'PENDING' as JobStatus;
 const STATUS_FAILED = 'FAILED' as JobStatus;
@@ -32,12 +31,6 @@ export async function createAutomationJob(userId: string, scheduledFor?: Date) {
     }
   });
 
-  emitJobUpdate(userId, {
-    jobId: job.id,
-    status: job.status,
-    updatedAt: job.updatedAt.toISOString()
-  });
-
   return job;
 }
 
@@ -53,13 +46,6 @@ export async function markJobState(
       status,
       errorMessage: status === STATUS_FAILED ? message ?? 'Job failed' : null
     }
-  });
-
-  emitJobUpdate(userId, {
-    jobId: job.id,
-    status: job.status,
-    message,
-    updatedAt: job.updatedAt.toISOString()
   });
 
   return job;

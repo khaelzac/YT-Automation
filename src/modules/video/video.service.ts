@@ -43,54 +43,14 @@ function resolveVideoPrompt(script: string, niche: string): VideoPromptConfig {
   return videoPromptByNiche[normalized] ?? { prompt: script };
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export type VideoGenerationStart =
+  | { requestId: string }
+  | { placeholderUrl: string };
 
-async function pollForVideoUrl(requestId: string, apiKey: string): Promise<string> {
-  const pollIntervalMs = 5000;
-  const timeoutMs = 180000;
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const result = await fetch(`https://api.x.ai/v1/videos/${requestId}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`
-      }
-    });
-
-    if (!result.ok) {
-      const body = await result.text();
-      throw new Error(`xAI video status failed: ${result.status} ${body}`);
-    }
-
-    const data = (await result.json()) as {
-      status?: 'pending' | 'done' | 'expired' | string;
-      video?: { url?: string };
-    };
-
-    if (data.status === 'done') {
-      if (!data.video?.url) {
-        throw new Error('xAI video status returned done without a video URL');
-      }
-      return data.video.url;
-    }
-
-    if (data.status === 'expired') {
-      throw new Error('xAI video generation request expired');
-    }
-
-    await sleep(pollIntervalMs);
-  }
-
-  throw new Error('xAI video generation timed out');
-}
-
-export async function generateVideoFromScript(script: string, niche: string): Promise<string> {
+export async function startVideoGeneration(script: string, niche: string): Promise<VideoGenerationStart> {
   const apiKey = env.XAI_API_KEY || env.VIDEO_PROVIDER_API_KEY;
   if (!apiKey) {
-    return `https://video-assets.local/${encodeURIComponent(niche)}/${Date.now()}.mp4`;
+    return { placeholderUrl: `https://video-assets.local/${encodeURIComponent(niche)}/${Date.now()}.mp4` };
   }
 
   const config = resolveVideoPrompt(script, niche);
@@ -129,5 +89,38 @@ export async function generateVideoFromScript(script: string, niche: string): Pr
     throw new Error('xAI video generation returned no request_id');
   }
 
-  return pollForVideoUrl(data.request_id, apiKey);
+  return { requestId: data.request_id };
+}
+
+export async function getVideoGenerationStatus(requestId: string, apiKey?: string) {
+  const token = apiKey || env.XAI_API_KEY || env.VIDEO_PROVIDER_API_KEY;
+  if (!token) {
+    throw new Error('Missing video provider API key');
+  }
+
+  const result = await fetch(`https://api.x.ai/v1/videos/${requestId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!result.ok) {
+    const body = await result.text();
+    throw new Error(`xAI video status failed: ${result.status} ${body}`);
+  }
+
+  const data = (await result.json()) as {
+    status?: 'pending' | 'done' | 'expired' | string;
+    video?: { url?: string };
+  };
+
+  if (data.status === 'done' && !data.video?.url) {
+    throw new Error('xAI video status returned done without a video URL');
+  }
+
+  return {
+    status: data.status ?? 'pending',
+    url: data.video?.url
+  };
 }
