@@ -48,7 +48,11 @@ export type VideoGenerationStart =
   | { requestId: string }
   | { placeholderUrl: string };
 
-export async function startVideoGeneration(script: string, niche: string): Promise<VideoGenerationStart> {
+export async function startVideoGeneration(
+  script: string,
+  niche: string,
+  timeoutMs = env.XAI_REQUEST_TIMEOUT_MS
+): Promise<VideoGenerationStart> {
   const apiKey = env.XAI_API_KEY || env.VIDEO_PROVIDER_API_KEY;
   if (!apiKey) {
     return { placeholderUrl: `https://video-assets.local/${encodeURIComponent(niche)}/${Date.now()}.mp4` };
@@ -81,7 +85,7 @@ export async function startVideoGeneration(script: string, niche: string): Promi
       },
       body: JSON.stringify(payload)
     },
-    env.XAI_REQUEST_TIMEOUT_MS
+    timeoutMs
   );
 
   if (!response.ok) {
@@ -97,7 +101,11 @@ export async function startVideoGeneration(script: string, niche: string): Promi
   return { requestId: data.request_id };
 }
 
-export async function getVideoGenerationStatus(requestId: string, apiKey?: string) {
+export async function getVideoGenerationStatus(
+  requestId: string,
+  apiKey?: string,
+  timeoutMs = env.XAI_REQUEST_TIMEOUT_MS
+) {
   const token = apiKey || env.XAI_API_KEY || env.VIDEO_PROVIDER_API_KEY;
   if (!token) {
     throw new Error('Missing video provider API key');
@@ -111,7 +119,7 @@ export async function getVideoGenerationStatus(requestId: string, apiKey?: strin
         Authorization: `Bearer ${token}`
       }
     },
-    env.XAI_REQUEST_TIMEOUT_MS
+    timeoutMs
   );
 
   if (!result.ok) {

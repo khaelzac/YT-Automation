@@ -138,7 +138,7 @@ export function validateGeneratedScript(text: string, previousTitles: string[] =
   };
 }
 
-async function createCompletion(messages: ChatMessage[]): Promise<string> {
+async function createCompletion(messages: ChatMessage[], timeoutMs: number): Promise<string> {
   const response = await fetchWithTimeout(
     'https://api.groq.com/openai/v1/chat/completions',
     {
@@ -154,7 +154,7 @@ async function createCompletion(messages: ChatMessage[]): Promise<string> {
       messages
     })
     },
-    env.GROQ_REQUEST_TIMEOUT_MS
+    timeoutMs
   );
 
   if (!response.ok) {
@@ -169,7 +169,11 @@ async function createCompletion(messages: ChatMessage[]): Promise<string> {
   return data.choices?.[0]?.message?.content?.trim() || 'Unable to generate script.';
 }
 
-export async function generateScript(niche: string, previousTitles: string[] = []): Promise<string> {
+export async function generateScript(
+  niche: string,
+  previousTitles: string[] = [],
+  timeoutMs = env.GROQ_REQUEST_TIMEOUT_MS
+): Promise<string> {
   const normalizedNiche = niche.trim().toLowerCase();
   const basePrompt =
     nichePrompts[normalizedNiche] ??
@@ -252,7 +256,7 @@ export async function generateScript(niche: string, previousTitles: string[] = [
 
   let lastOutput = '';
   for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
-    lastOutput = await createCompletion(messages);
+    lastOutput = await createCompletion(messages, timeoutMs);
     const issues = getValidationIssues(lastOutput, previousTitles);
 
     if (issues.length === 0) {

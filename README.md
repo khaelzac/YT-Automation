@@ -7,7 +7,7 @@ Express + TypeScript orchestration service.
 - `DIRECT_URL`: Supabase direct Postgres URL for Prisma migrations.
 - `CRON_SECRET`: Secret for securing `/api/process-job` requests.
 - `CRON_MAX_JOBS_PER_RUN`: Max jobs to process per cron request (clamped to 1-2).
-- `CRON_TIME_BUDGET_MS`: Per-invocation processing time budget.
+- `CRON_TIME_BUDGET_MS`: Per-invocation processing time budget (recommended <= `20000` on Vercel).
 - `SCRIPT_RETRY_MAX`: Max script generation retries (recommended: `5`).
 - `SCRIPT_RETRY_BASE_DELAY_MS`: Base delay for exponential backoff.
 - `RATE_LIMIT_DELAY_SECONDS`: Fallback delay for 429/rate-limit retries.

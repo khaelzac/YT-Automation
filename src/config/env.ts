@@ -11,7 +11,7 @@ const envSchema = z.object({
   CLIENT_ORIGIN: z.string().default('*'),
   CRON_SECRET: z.string().default(''),
   CRON_MAX_JOBS_PER_RUN: z.coerce.number().int().positive().default(1),
-  CRON_TIME_BUDGET_MS: z.coerce.number().int().positive().default(45000),
+  CRON_TIME_BUDGET_MS: z.coerce.number().int().positive().default(20000),
   SCRIPT_RETRY_MAX: z.coerce.number().int().positive().default(5),
   SCRIPT_RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().default(800),
   RATE_LIMIT_DELAY_SECONDS: z.coerce.number().int().positive().default(120),

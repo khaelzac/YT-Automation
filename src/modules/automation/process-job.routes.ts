@@ -30,10 +30,11 @@ async function handleProcessJob(req: Request, res: Response) {
       ? (req.body as { limit?: number }).limit
       : undefined;
   const limit = parseLimit(req.query.limit ?? bodyLimit ?? env.CRON_MAX_JOBS_PER_RUN);
+  const cappedTimeBudgetMs = Math.min(env.CRON_TIME_BUDGET_MS, 25_000);
 
   const result = await processDueJobs({
     maxJobs: limit,
-    timeBudgetMs: env.CRON_TIME_BUDGET_MS
+    timeBudgetMs: cappedTimeBudgetMs
   });
 
   res.json({

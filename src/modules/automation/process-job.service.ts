@@ -16,6 +16,8 @@ const CLAIMABLE_STATUSES: JobStatus[] = [
   'UPLOADING'
 ];
 const VIDEO_STATUS_POLL_DELAY_SECONDS = 60;
+const MIN_EXTERNAL_CALL_TIMEOUT_MS = 4_000;
+const TIMEOUT_BUFFER_MS = 1_500;
 
 type ProcessOutcome = {
   jobId: string;
@@ -26,6 +28,11 @@ type ProcessOutcome = {
 function isRateLimitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes('rate_limit') || message.includes('429');
+}
+
+function isTimeoutError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('timed out') || message.includes('timeout') || message.includes('abort');
 }
 
 function getErrorMessage(error: unknown): string {
@@ -41,7 +48,17 @@ function parseRateLimitDelaySeconds(message: string): number {
   return Math.ceil(parsed);
 }
 
-async function claimNextDueJob(now: Date): Promise<AutomationJob | null> {
+function getRemainingTimeMs(deadlineAtMs: number): number {
+  return Math.max(0, deadlineAtMs - Date.now());
+}
+
+function resolveStepTimeoutMs(configuredTimeoutMs: number, deadlineAtMs: number): number | null {
+  const remaining = getRemainingTimeMs(deadlineAtMs) - TIMEOUT_BUFFER_MS;
+  if (remaining < MIN_EXTERNAL_CALL_TIMEOUT_MS) return null;
+  return Math.max(MIN_EXTERNAL_CALL_TIMEOUT_MS, Math.min(configuredTimeoutMs, remaining));
+}
+
+async function claimNextDueJob(now: Date, timeBudgetMs: number): Promise<AutomationJob | null> {
   const candidate = await prisma.automationJob.findFirst({
     where: {
       status: { in: CLAIMABLE_STATUSES },
@@ -52,7 +69,7 @@ async function claimNextDueJob(now: Date): Promise<AutomationJob | null> {
 
   if (!candidate) return null;
 
-  const lockUntil = new Date(Date.now() + Math.min(env.CRON_TIME_BUDGET_MS, 60_000));
+  const lockUntil = new Date(Date.now() + Math.min(timeBudgetMs, 60_000));
   const claimed = await prisma.automationJob.updateMany({
     where: {
       id: candidate.id,
@@ -117,7 +134,16 @@ async function generateScriptOnce(
   }
 
   try {
-    const script = await generateScript(job.niche, previousTitles);
+    const timeoutMs = resolveStepTimeoutMs(env.GROQ_REQUEST_TIMEOUT_MS, deadlineAtMs);
+    if (!timeoutMs) {
+      return {
+        delayed: true,
+        reason: 'Deferred script generation due to limited remaining cron time budget.',
+        delaySeconds: 10
+      };
+    }
+
+    const script = await generateScript(job.niche, previousTitles, timeoutMs);
     const validation = validateGeneratedScript(script, previousTitles);
 
     if (validation.valid) {
@@ -127,11 +153,11 @@ async function generateScriptOnce(
     return { failed: true, reason: `Generated script failed validation: ${validation.issues.join(' | ')}` };
   } catch (error) {
     const reason = getErrorMessage(error);
-    if (isRateLimitError(error)) {
+    if (isRateLimitError(error) || isTimeoutError(error)) {
       return {
         delayed: true,
         reason,
-        delaySeconds: parseRateLimitDelaySeconds(reason)
+        delaySeconds: isRateLimitError(error) ? parseRateLimitDelaySeconds(reason) : 20
       };
     }
 
@@ -199,7 +225,12 @@ async function processClaimedJob(job: AutomationJob, deadlineAtMs: number): Prom
 
   if (!job.videoRequestId && !job.videoAssetUrl) {
     try {
-      const start = await startVideoGeneration(job.scriptText, job.niche);
+      const timeoutMs = resolveStepTimeoutMs(env.XAI_REQUEST_TIMEOUT_MS, deadlineAtMs);
+      if (!timeoutMs) {
+        return delayJob(job, 'Deferred video generation due to limited remaining cron time budget.', 10);
+      }
+
+      const start = await startVideoGeneration(job.scriptText, job.niche, timeoutMs);
       if ('placeholderUrl' in start) {
         await prisma.automationJob.update({
           where: { id: job.id },
@@ -226,13 +257,21 @@ async function processClaimedJob(job: AutomationJob, deadlineAtMs: number): Prom
 
       return { jobId: job.id, status: 'completed', reason: 'Video generation started.' };
     } catch (error) {
+      if (isTimeoutError(error)) {
+        return delayJob(job, `Video generation timeout: ${getErrorMessage(error)}`, 20);
+      }
       return failJob(job, `Video generation failed: ${getErrorMessage(error)}`);
     }
   }
 
   if (job.videoRequestId && !job.videoAssetUrl) {
     try {
-      const status = await getVideoGenerationStatus(job.videoRequestId);
+      const timeoutMs = resolveStepTimeoutMs(env.XAI_REQUEST_TIMEOUT_MS, deadlineAtMs);
+      if (!timeoutMs) {
+        return delayJob(job, 'Deferred video status check due to limited remaining cron time budget.', 10);
+      }
+
+      const status = await getVideoGenerationStatus(job.videoRequestId, undefined, timeoutMs);
       if (status.status === 'done' && status.url) {
         await prisma.automationJob.update({
           where: { id: job.id },
@@ -263,6 +302,9 @@ async function processClaimedJob(job: AutomationJob, deadlineAtMs: number): Prom
 
       return { jobId: job.id, status: 'delayed', reason: 'Video still generating.' };
     } catch (error) {
+      if (isTimeoutError(error)) {
+        return delayJob(job, `Video status timeout: ${getErrorMessage(error)}`, 20);
+      }
       return failJob(job, `Video status check failed: ${getErrorMessage(error)}`);
     }
   }
@@ -327,7 +369,7 @@ export async function processDueJobs(input: { maxJobs: number; timeBudgetMs: num
   for (let i = 0; i < maxJobs; i += 1) {
     if (Date.now() >= deadlineAtMs) break;
 
-    const claimedJob = await claimNextDueJob(new Date());
+    const claimedJob = await claimNextDueJob(new Date(), input.timeBudgetMs);
     if (!claimedJob) break;
 
     try {

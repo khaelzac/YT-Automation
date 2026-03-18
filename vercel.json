@@ -7,6 +7,14 @@
   },
   "rewrites": [
     {
+      "source": "/process-job",
+      "destination": "/api/process-job"
+    },
+    {
+      "source": "/schedule-scan",
+      "destination": "/api/schedule-scan"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     }
