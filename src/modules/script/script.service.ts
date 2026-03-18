@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { fetchWithTimeout } from '../../lib/fetch-timeout';
 
 const MIN_SCRIPT_WORDS = 1400;
 const MAX_SCRIPT_WORDS = 2000;
@@ -138,7 +139,9 @@ export function validateGeneratedScript(text: string, previousTitles: string[] =
 }
 
 async function createCompletion(messages: ChatMessage[]): Promise<string> {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const response = await fetchWithTimeout(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -150,7 +153,9 @@ async function createCompletion(messages: ChatMessage[]): Promise<string> {
       max_tokens: env.GROQ_MAX_TOKENS,
       messages
     })
-  });
+    },
+    env.GROQ_REQUEST_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const body = await response.text();

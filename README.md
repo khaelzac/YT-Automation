@@ -11,8 +11,10 @@ Express + TypeScript orchestration service.
 - `SCRIPT_RETRY_MAX`: Max script generation retries (recommended: `5`).
 - `SCRIPT_RETRY_BASE_DELAY_MS`: Base delay for exponential backoff.
 - `RATE_LIMIT_DELAY_SECONDS`: Fallback delay for 429/rate-limit retries.
+- `GROQ_REQUEST_TIMEOUT_MS`: Timeout for Groq script generation requests.
 - `XAI_API_KEY`: xAI API key for Grok Imagine video generation.
 - `XAI_VIDEO_MODEL`: xAI video model name (default: `grok-imagine-video`).
+- `XAI_REQUEST_TIMEOUT_MS`: Timeout for xAI video API requests.
 
 ## Modules
 - `auth`: Google OAuth bootstrap + mock callback for local setup

@@ -1,4 +1,5 @@
 import { env } from '../../config/env';
+import { fetchWithTimeout } from '../../lib/fetch-timeout';
 
 type VideoPromptConfig = {
   prompt: string;
@@ -70,14 +71,18 @@ export async function startVideoGeneration(script: string, niche: string): Promi
   if (config.aspectRatio) payload.aspect_ratio = config.aspectRatio;
   if (config.resolution) payload.resolution = config.resolution;
 
-  const response = await fetch('https://api.x.ai/v1/videos/generations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
+  const response = await fetchWithTimeout(
+    'https://api.x.ai/v1/videos/generations',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
     },
-    body: JSON.stringify(payload)
-  });
+    env.XAI_REQUEST_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     const body = await response.text();
@@ -98,12 +103,16 @@ export async function getVideoGenerationStatus(requestId: string, apiKey?: strin
     throw new Error('Missing video provider API key');
   }
 
-  const result = await fetch(`https://api.x.ai/v1/videos/${requestId}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  const result = await fetchWithTimeout(
+    `https://api.x.ai/v1/videos/${requestId}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    },
+    env.XAI_REQUEST_TIMEOUT_MS
+  );
 
   if (!result.ok) {
     const body = await result.text();
