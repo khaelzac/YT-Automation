@@ -19,6 +19,8 @@ const envSchema = z.object({
   GROQ_MODEL: z.string().default('llama-3.1-8b-instant'),
   GROQ_MAX_TOKENS: z.coerce.number().int().positive().default(2600),
   VIDEO_PROVIDER_API_KEY: z.string().default(''),
+  XAI_API_KEY: z.string().default(''),
+  XAI_VIDEO_MODEL: z.string().default('grok-imagine-video'),
   YOUTUBE_CLIENT_ID: z.string().default(''),
   YOUTUBE_CLIENT_SECRET: z.string().default(''),
   YOUTUBE_REDIRECT_URI: z.string().default(''),

@@ -14,7 +14,7 @@
   "crons": [
     {
       "path": "/api/process-job",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
